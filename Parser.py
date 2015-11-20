@@ -1,8 +1,10 @@
 import sys
 import time
+import Constants as C
 from Oracle import Oracle
 from Perceptron import PerceptronModel
 from Transition import Transition
+from collections import defaultdict
 
 
 class Parser:
@@ -10,7 +12,6 @@ class Parser:
         self.labeled = labeled
 
     def initialize(self, sentence):
-        # http://ilk.uvt.nl/conll/#dataformat
         #            ID    FORM   LEMMA  CPOSTAG  POSTAG  FEATS   HEAD  DEPREL  PHEAD   PDEPREL
         self.root = ['0', 'ROOT', 'ROOT', 'ROOT', 'ROOT', 'ROOT', '-1', 'ROOT', 'ROOT', 'ROOT']
         self.buff = [self.root] + list(reversed(sentence))  # buff = [ROOT, N, N-1, ... 1]
@@ -18,43 +19,24 @@ class Parser:
         self.arcs = {}  # {dependentId: headId}
         self.labels = {}  # {dependentId: dependentLabel}
         self.transitions = list()
-        self.leftmostChildren = {}  # {headId: [childId, ...]}
-        self.rightmostChildren = {}  # {headId: [childId, ...]}
+        self.dependentIDs = defaultdict(list)  # {headId: [dependentId, ...]}
 
         # Calculate the leftmost and rightmost children for each node in the sentence
         # Note: At test time this data is not used.
         for word in sentence:
-            wordIndex = word[0]
-            headIndex = word[6]
-            if int(wordIndex) < int(headIndex):
-                if headIndex in self.leftmostChildren:
-                    self.leftmostChildren[headIndex].append(wordIndex)
-                else:
-                    self.leftmostChildren[headIndex] = [wordIndex]
-            else:
-                if headIndex in self.rightmostChildren:
-                    self.rightmostChildren[headIndex].append(wordIndex)
-                else:
-                    self.rightmostChildren[headIndex] = [wordIndex]
+            self.dependentIDs[word[C.HEAD]].append(word[C.ID])
 
     # This function should take a transition object and apply to the current parser state. It need not return anything.
     def execute_transition(self, transition):
-        if transition.transitionType == Transition.LeftArc:
-            toBeHead = self.stack[-1]
-            toBeDependent = self.stack[-2]
-            self.arcs[toBeDependent[0]] = toBeHead[0]
-            if self.labeled:
-                self.labels[toBeDependent[0]] = toBeDependent[7]
-            self.stack.remove(toBeDependent)
-        elif transition.transitionType == Transition.RightArc:
-            toBeHead = self.stack[-2]
-            toBeDependent = self.stack[-1]
-            self.arcs[toBeDependent[0]] = toBeHead[0]
-            if self.labeled:
-                self.labels[toBeDependent[0]] = toBeDependent[7]
-            self.stack.remove(toBeDependent)
-        else:
+        if transition.transitionType == Transition.Shift:
             self.stack.append(self.buff.pop())
+        else:
+            head = self.stack[-1] if transition.transitionType == Transition.LeftArc else self.stack[-2]
+            dependent = self.stack[-2] if transition.transitionType == Transition.LeftArc else self.stack[-1]
+            self.arcs[dependent[C.ID]] = head[C.ID]
+            if self.labeled:
+                self.labels[dependent[C.ID]] = dependent[C.DEPREL]
+            self.stack.remove(dependent)
 
     @staticmethod
     def load_corpus(filename):
@@ -74,13 +56,10 @@ class Parser:
         return corpus
 
     def output(self, sentence):
-        for token in sentence:
-            head = self.arcs.get(token[0], '0')
-            label = self.labels.get(token[0], '_')
-            label = label if label is not None else '_'
-            token[6] = head
-            token[7] = label
-            print '\t'.join(token)
+        for word in sentence:
+            word[C.HEAD] = self.arcs.get(word[C.ID], '0')
+            word[C.DEPREL] = self.labels.get(word[C.ID], '_')
+            print '\t'.join(word)
         print
 
     def train(self, trainingSet, model):
@@ -89,7 +68,7 @@ class Parser:
         for sentence in corpus:
             self.initialize(sentence)
             while len(self.buff) > 0 or len(self.stack) > 1:
-                transition = oracle.getTransition(self.stack, self.buff, self.leftmostChildren, self.rightmostChildren, self.arcs, self.labeled)
+                transition = oracle.getTransition(self.stack, self.buff, self.dependentIDs, self.arcs, self.labeled)
                 model.learn(transition, self.stack, self.buff, self.labels, self.transitions)
                 self.execute_transition(transition)
 
@@ -108,12 +87,12 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--labeled', '-l', action='store_true')
-    parser.add_argument('trainingset', help='Training treebank')
-    parser.add_argument('testset', help='Dev/test treebank')
+    parser.add_argument('trainingSet', help='Training treebank')
+    parser.add_argument('testSet', help='Dev/test treebank')
     args = parser.parse_args()
 
     p = Parser(args.labeled)
     model = PerceptronModel(args.labeled)
 
-    p.train(args.trainingset, model)
-    p.parse(args.testset, model)
+    p.train(args.trainingSet, model)
+    p.parse(args.testSet, model)
