@@ -120,4 +120,4 @@ target/
 
 # Created by .ignore support plugin (hsz.mobi)
 
-data/output.conll
+data/output.*

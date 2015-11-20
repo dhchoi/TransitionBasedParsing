@@ -2,6 +2,7 @@
 
 
 class Transition:
+    # Transition types
     Shift = 0
     LeftArc = 1
     RightArc = 2
@@ -17,8 +18,7 @@ class Transition:
         return str(self)
 
     def __eq__(self, other):
-        return self.transitionType == other.transitionType \
-               and self.label == other.label
+        return self.transitionType == other.transitionType and self.label == other.label
 
     def __ne__(self, other):
         return not (self == other)

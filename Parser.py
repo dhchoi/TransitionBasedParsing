@@ -10,21 +10,51 @@ class Parser:
         self.labeled = labeled
 
     def initialize(self, sentence):
+        # http://ilk.uvt.nl/conll/#dataformat
+        #            ID    FORM   LEMMA  CPOSTAG  POSTAG  FEATS   HEAD  DEPREL  PHEAD   PDEPREL
         self.root = ['0', 'ROOT', 'ROOT', 'ROOT', 'ROOT', 'ROOT', '-1', 'ROOT', 'ROOT', 'ROOT']
-        self.buff = [self.root] + list(reversed(sentence))
+        self.buff = [self.root] + list(reversed(sentence))  # buff = [ROOT, N, N-1, ... 1]
         self.stack = list()
-        self.arcs = {}
-        self.labels = {}
+        self.arcs = {}  # {dependentId: headId}
+        self.labels = {}  # {dependentId: dependentLabel}
         self.transitions = list()
-        self.leftmostChildren = {}
-        self.rightmostChildren = {}
-        # TODO: Calculate the leftmost and rightmost children for each node in the sentence
-        # Note: At test time this data is not used.
-        assert False, 'Please finish implementing this function!'
+        self.leftmostChildren = {}  # {headId: [childId, ...]}
+        self.rightmostChildren = {}  # {headId: [childId, ...]}
 
+        # Calculate the leftmost and rightmost children for each node in the sentence
+        # Note: At test time this data is not used.
+        for word in sentence:
+            wordIndex = word[0]
+            headIndex = word[6]
+            if int(wordIndex) < int(headIndex):
+                if headIndex in self.leftmostChildren:
+                    self.leftmostChildren[headIndex].append(wordIndex)
+                else:
+                    self.leftmostChildren[headIndex] = [wordIndex]
+            else:
+                if headIndex in self.rightmostChildren:
+                    self.rightmostChildren[headIndex].append(wordIndex)
+                else:
+                    self.rightmostChildren[headIndex] = [wordIndex]
+
+    # This function should take a transition object and apply to the current parser state. It need not return anything.
     def execute_transition(self, transition):
-        # This function should take a transition object and apply to the current parser state. It need not return anything.
-        assert False, 'Please implement this function!'
+        if transition.transitionType == Transition.LeftArc:
+            toBeHead = self.stack[-1]
+            toBeDependent = self.stack[-2]
+            self.arcs[toBeDependent[0]] = toBeHead[0]
+            if self.labeled:
+                self.labels[toBeDependent[0]] = toBeDependent[7]
+            self.stack.remove(toBeDependent)
+        elif transition.transitionType == Transition.RightArc:
+            toBeHead = self.stack[-2]
+            toBeDependent = self.stack[-1]
+            self.arcs[toBeDependent[0]] = toBeHead[0]
+            if self.labeled:
+                self.labels[toBeDependent[0]] = toBeDependent[7]
+            self.stack.remove(toBeDependent)
+        else:
+            self.stack.append(self.buff.pop())
 
     @staticmethod
     def load_corpus(filename):
@@ -59,11 +89,8 @@ class Parser:
         for sentence in corpus:
             self.initialize(sentence)
             while len(self.buff) > 0 or len(self.stack) > 1:
-                transition = oracle.getTransition(self.stack, self.buff, \
-                                                  self.leftmostChildren, self.rightmostChildren, \
-                                                  self.arcs, self.labeled)
-                model.learn(transition, self.stack, self.buff, \
-                            self.labels, self.transitions)
+                transition = oracle.getTransition(self.stack, self.buff, self.leftmostChildren, self.rightmostChildren, self.arcs, self.labeled)
+                model.learn(transition, self.stack, self.buff, self.labels, self.transitions)
                 self.execute_transition(transition)
 
     def parse(self, testSet, model):
@@ -71,8 +98,7 @@ class Parser:
         for sentence in corpus:
             self.initialize(sentence)
             while len(self.buff) > 0 or len(self.stack) > 1:
-                _, transition = model.predict(self.stack, self.buff, \
-                                              self.labels, self.transitions)
+                _, transition = model.predict(self.stack, self.buff, self.labels, self.transitions)
                 self.execute_transition(transition)
             self.output(sentence)
 
