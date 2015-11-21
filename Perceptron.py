@@ -28,7 +28,7 @@ class PerceptronModel:
         features = defaultdict(float)
 
         tType = transition.transitionType
-        label = transition.label
+        tLabel = transition.label
 
         # Top two POS tags from the stack
         for i in range(2):
@@ -54,13 +54,13 @@ class PerceptronModel:
             features['transition=%d,prev_transition=None' % (tType)] = 1
 
         # Bias feature
-        features['transition=%d' % (transition.transitionType)] = 1
+        features['transition=%d' % (tType)] = 1
 
         if self.labeled:
             # Action and label pair
-            features['transition=%d,label=%s' % (transition.transitionType, transition.label)] = 1
+            features['transition=%d,label=%s' % (tType, tLabel)] = 1
             # Label bias
-            features['label=%s' % (transition.label)] = 1
+            features['label=%s' % (tLabel)] = 1
 
         return features
 
@@ -92,7 +92,7 @@ class PerceptronModel:
         for transition in self.possible_transitions(stack, buff):
             features = self.extract_features(transition, stack, buff, labels, previous_transitions)
             score = dot(features, self.weights)
-            if best_score == None or score > best_score:
+            if best_score is None or score > best_score:
                 best_score = score
                 best_transition = transition
                 best_features = features
@@ -100,8 +100,8 @@ class PerceptronModel:
                 correct_features = features
 
         if best_transition != correct_transition:
-            assert best_features != None
-            assert correct_features != None
+            assert best_features is not None
+            assert correct_features is not None
             self.update(correct_features, best_features)
 
     def predict(self, stack, buff, labels, previous_transitions):
@@ -110,7 +110,7 @@ class PerceptronModel:
         for transition in self.possible_transitions(stack, buff):
             features = self.extract_features(transition, stack, buff, labels, previous_transitions)
             score = dot(features, self.weights)
-            if best_score == None or score > best_score:
+            if best_score is None or score > best_score:
                 best_score = score
                 best_transition = transition
         return (best_score, best_transition)

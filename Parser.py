@@ -34,8 +34,7 @@ class Parser:
             head = self.stack[-1] if transition.transitionType == Transition.LeftArc else self.stack[-2]
             dependent = self.stack[-2] if transition.transitionType == Transition.LeftArc else self.stack[-1]
             self.arcs[dependent[C.ID]] = head[C.ID]
-            if self.labeled:
-                self.labels[dependent[C.ID]] = dependent[C.DEPREL]
+            self.labels[dependent[C.ID]] = transition.label
             self.stack.remove(dependent)
 
     @staticmethod
@@ -58,7 +57,8 @@ class Parser:
     def output(self, sentence):
         for word in sentence:
             word[C.HEAD] = self.arcs.get(word[C.ID], '0')
-            word[C.DEPREL] = self.labels.get(word[C.ID], '_')
+            label = self.labels.get(word[C.ID], '_')
+            word[C.DEPREL] = label if label is not None else '_'
             print '\t'.join(word)
         print
 
@@ -94,5 +94,9 @@ if __name__ == "__main__":
     p = Parser(args.labeled)
     model = PerceptronModel(args.labeled)
 
+    startTime = time.time()
+
     p.train(args.trainingSet, model)
     p.parse(args.testSet, model)
+
+    print >> sys.stderr,  "Elapsed Time: %s seconds" % (time.time() - startTime)
