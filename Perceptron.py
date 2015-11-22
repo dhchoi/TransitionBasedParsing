@@ -48,8 +48,7 @@ class PerceptronModel:
 
         # Previous transition type
         if len(previous_transitions) > 0:
-            prev = previous_transitions[-1]
-            features['transition=%d,prev_transition=%d' % (tType, prev)] = 1
+            features['transition=%d,prev_transition=%d' % (tType, previous_transitions[-1].transitionType)] = 1
         else:
             features['transition=%d,prev_transition=None' % (tType)] = 1
 

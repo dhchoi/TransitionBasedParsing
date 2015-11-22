@@ -10,6 +10,9 @@ from collections import defaultdict
 class Parser:
     def __init__(self, labeled):
         self.labeled = labeled
+        self.posTypes = []
+        self.labelTypes = []
+        self.model = PerceptronModel(self.labeled)
 
     def initialize(self, sentence):
         #            ID    FORM   LEMMA  CPOSTAG  POSTAG  FEATS   HEAD  DEPREL  PHEAD   PDEPREL
@@ -26,6 +29,14 @@ class Parser:
         for word in sentence:
             self.dependentIDs[word[C.HEAD]].append(word[C.ID])
 
+    # Record types that were seen
+    def trackTypes(self, sentence):
+        for word in sentence:
+            if word[C.POSTAG] not in self.posTypes:
+                self.posTypes.append(word[C.POSTAG])
+            if word[C.DEPREL] not in self.labelTypes:
+                self.labelTypes.append(word[C.DEPREL])
+
     # This function should take a transition object and apply to the current parser state. It need not return anything.
     def execute_transition(self, transition):
         if transition.transitionType == Transition.Shift:
@@ -36,6 +47,7 @@ class Parser:
             self.arcs[dependent[C.ID]] = head[C.ID]
             self.labels[dependent[C.ID]] = transition.label
             self.stack.remove(dependent)
+        self.transitions.append(transition)
 
     @staticmethod
     def load_corpus(filename):
@@ -62,22 +74,23 @@ class Parser:
             print '\t'.join(word)
         print
 
-    def train(self, trainingSet, model):
+    def train(self, trainingSet):
         corpus = Parser.load_corpus(trainingSet)
         oracle = Oracle()
         for sentence in corpus:
             self.initialize(sentence)
+            self.trackTypes(sentence)
             while len(self.buff) > 0 or len(self.stack) > 1:
                 transition = oracle.getTransition(self.stack, self.buff, self.dependentIDs, self.arcs, self.labeled)
-                model.learn(transition, self.stack, self.buff, self.labels, self.transitions)
+                self.model.learn(transition, self.stack, self.buff, self.labels, self.transitions)
                 self.execute_transition(transition)
 
-    def parse(self, testSet, model):
+    def parse(self, testSet):
         corpus = Parser.load_corpus(testSet)
         for sentence in corpus:
             self.initialize(sentence)
             while len(self.buff) > 0 or len(self.stack) > 1:
-                _, transition = model.predict(self.stack, self.buff, self.labels, self.transitions)
+                _, transition = self.model.predict(self.stack, self.buff, self.labels, self.transitions)
                 self.execute_transition(transition)
             self.output(sentence)
 
@@ -91,12 +104,10 @@ if __name__ == "__main__":
     parser.add_argument('testSet', help='Dev/test treebank')
     args = parser.parse_args()
 
-    p = Parser(args.labeled)
-    model = PerceptronModel(args.labeled)
-
     startTime = time.time()
 
-    p.train(args.trainingSet, model)
-    p.parse(args.testSet, model)
+    p = Parser(args.labeled)
+    p.train(args.trainingSet)
+    p.parse(args.testSet)
 
     print >> sys.stderr,  "Elapsed Time: %s seconds" % (time.time() - startTime)
