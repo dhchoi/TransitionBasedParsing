@@ -1,41 +1,30 @@
 import sys
-import tensorflow as tf
 import Constants as C
-import numpy as np
+import numpy
+import scipy
 from sklearn import svm, datasets
 from Transition import Transition
 
 
-class MyModel:
+class SvmModel:
 
     def __init__(self, labeled, posTypes, labelTypes):
         self.labeled = labeled
         self.posTypes = posTypes
         self.labelTypes = labelTypes
-        self.numFeatures = 7
-        self.numLabels = 3
-
-        # # TensorFlow Initializations
-        # self.x = tf.placeholder("float", [None, self.numFeatures])
-        # self.y_ = tf.placeholder("float", [None, self.numLabels])
-        #
-        # W = tf.Variable(tf.zeros([self.numFeatures, self.numLabels]))
-        # b = tf.Variable(tf.zeros([self.numLabels]))
-        # self.y = tf.nn.softmax(tf.matmul(self.x, W) + b)
-        #
-        # cross_entropy = -tf.reduce_sum(self.y_ * tf.log(self.y))
-        # self.train_step = tf.train.GradientDescentOptimizer(0.01).minimize(cross_entropy)
-        #
-        # init = tf.initialize_all_variables()
-        # self.sess = tf.Session()
-        # self.sess.run(init)
-        #
-        # self.getBestLabel = tf.argmax(self.y, 1)
 
         # SciKit
-        self.X = []
-        self.Y = []
-        self.clf = svm.SVC(probability=False)
+        self.featureDict = {}
+        self.features = []
+        self.labels = []
+        self.clf = svm.SVC(
+                kernel='poly',
+                degree=2,
+                coef0=0,
+                gamma=0.2,
+                C=0.5,
+                verbose=True,
+                probability=True)
         self.hasFitted = False
 
     def createFeatureVector(self, stack, buff, labels, previous_transitions):
@@ -74,7 +63,7 @@ class MyModel:
             # # Label bias
             # features['label=%s' % (tLabel)] = 1
 
-        assert len(featureVector) == self.numFeatures
+        # assert len(featureVector) == self.numFeatures
 
         # print >> sys.stderr, tf.transpose(featureVector)
 
@@ -84,31 +73,37 @@ class MyModel:
         labelVector = [0] * self.numLabels
         labelVector[correct_transition.transitionType] = 1
 
-        assert len(labelVector) == self.numLabels
+        # assert len(labelVector) == self.numLabels
 
         # print >> sys.stderr, labelVector
 
         return labelVector  # labelVector
 
+    # def possibleTransitions(self, stack, buff):
+    #     possible_transitions = []
+    #     # if len(buff) >= 1:
+    #     #     possible_transitions.append(Transition(Transition.Shift, None))
+    #     # if len(stack) >= 2:
+    #     #     for label in self.label_set:
+    #     #         possible_transitions.append(Transition(Transition.LeftArc, label))
+    #     #         possible_transitions.append(Transition(Transition.RightArc, label))
+    #     # assert len(possible_transitions) > 0
+    #     return possible_transitions
+
     def learn(self, correct_transition, stack, buff, labels, previous_transitions):
-        # self.sess.run(self.train_step,
-        #               feed_dict={self.x: tf.zeros([self.numFeatures]), # self.createFeatureVector(stack, buff, labels, previous_transitions),
-        #                          self.y_: tf.zeros([self.numLabels]) }) # self.createLabelVector(correct_transition)})
-        self.X.append(self.createFeatureVector(stack, buff, labels, previous_transitions))
+        self.features.append(self.createFeatureVector(stack, buff, labels, previous_transitions))
         # print >> sys.stderr, "correctTransitionType: " + str(correct_transition.transitionType)
-        self.Y.append(correct_transition.transitionType)
+        self.labels.append(correct_transition.transitionType)
 
     def predict(self, stack, buff, labels, previous_transitions):
         if not self.hasFitted:
             print >> sys.stderr, "Start fitting model"
-            print >> sys.stderr, "len(X): " + str(len(self.X))
-            print >> sys.stderr, "len(Y): " + str(len(self.Y))
-            self.clf.fit(self.X, self.Y)
+            print >> sys.stderr, "len(features): " + str(len(self.features))
+            print >> sys.stderr, "len(labels): " + str(len(self.labels))
+            self.clf.fit(self.features, self.labels)
             print >> sys.stderr, "Finished fitting model"
             self.hasFitted = True
 
-        # bestTransitionType = self.sess.run(self.getBestLabel,
-        #                                    feed_dict={self.x: self.createFeatureVector(stack, buff, labels, previous_transitions)})
         bestTransitionType = self.clf.predict([self.createFeatureVector(stack, buff, labels, previous_transitions)])
         # print >> sys.stderr, 'bestTransitionType: %d' % bestTransitionType[0]
 
@@ -124,67 +119,83 @@ class MyModel:
         return (0, Transition(bestTransitionType[0], None))
 
 
-def runTensorSample():
-    # 1797 data
-    mnistData = datasets.load_digits()
-    images = mnistData.images.reshape((len(mnistData.images), -1))
-    labels = []
-
-    for label in mnistData.target:
-        l = [0] * 10
-        l[label] = 1
-        labels.append(l)
-
-    x = tf.placeholder("float", [None, 64])
-    W = tf.Variable(tf.zeros([64, 10]))
-    b = tf.Variable(tf.zeros([10]))
-
-    y_ = tf.placeholder("float", [None, 10])
-    y = tf.nn.softmax(tf.matmul(x, W) + b)
-
-    cross_entropy = -tf.reduce_sum(y_ * tf.log(y))
-    train_step = tf.train.GradientDescentOptimizer(0.01).minimize(cross_entropy)
-
-    init = tf.initialize_all_variables()
-    sess = tf.Session()
-    sess.run(init)
-
-    # for i in range(100):
-    #     batch_xs, batch_ys = mnist.train.next_batch(100)
-    #     sess.run(train_step, feed_dict={x: batch_xs, y_: batch_ys})
-
-    print images
-    print labels
-
-    sess.run(train_step, feed_dict={x: images, y_: labels})
-
-    correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
-    accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
-    # print sess.run(accuracy, feed_dict={x: mnist.test.images, y_: mnist.test.labels})
-    print sess.run(accuracy, feed_dict={x: images, y_: labels})
-
-def runSvmSample():
-    X = [[0, 0, 0], [0, 0, 1], [0, 0, 2]]
-    y = [0, 1, 2]
-    # clf = svm.SVC(probability=True)
-    clf = svm.LinearSVC()
-    clf.fit(X, y)
-    X_ = [0, 0, 1]
-    # print clf.predict_proba([X_])
-    # print clf.predict([X_])
-    print clf.predict([X_])
-    result = clf.decision_function([X_])[0]
-    print result
-
-    votes = np.zeros(len(y))
-    p = 0
-    for i in range(len(y)):
-        for j in range(i + 1, len(y)):
-            if result[p] > 0:
-                votes[i] += 1
-            else:
-                votes[i] += 1
-            p += 1
-    print votes
-
+# def runSvmSample():
+#     X = [[0, 0, 0], [0, 0, 1], [0, 0, 2]]
+#     y = [0, 1, 2]
+#     # clf = svm.SVC(probability=True)
+#     clf = svm.LinearSVC()
+#     clf.fit(X, y)
+#     X_ = [0, 0, 1]
+#     # print clf.predict_proba([X_])
+#     # print clf.predict([X_])
+#     print clf.predict([X_])
+#     result = clf.decision_function([X_])[0]
+#     print result
+#
+#     votes = np.zeros(len(y))
+#     p = 0
+#     for i in range(len(y)):
+#         for j in range(i + 1, len(y)):
+#             print i, j, p
+#             if result[p] > 0:
+#                 votes[i] += 1
+#             else:
+#                 votes[j] += 1
+#             p += 1
+#     print votes
+#
 # runSvmSample()
+
+
+_dictionary = {} # {'STK_4_POS_xxx': 4, 'STK_5_POS_xxx': 5, 'STK_1_POS_xxx': 1, 'STK_2_POS_xxx': 2, 'STK_3_POS_xxx': 3, 'STK_0_POS_xxx': 0}
+
+def _convert_to_binary_features(features):
+    """
+    :param features: list of feature string which is needed to convert to binary features
+    :type features: list(str)
+    :return : string of binary features in libsvm format  which is 'featureID:value' pairs
+    """
+    unsorted_result = []
+    for feature in features:
+        _dictionary.setdefault(feature, len(_dictionary))
+        unsorted_result.append(_dictionary[feature])
+
+    # Default value of each feature is 1.0
+    return ' '.join(str(featureID) + ':1.0' for featureID in sorted(unsorted_result))
+
+features = ['STK_0_POS_xxx', 'STK_1_POS_xxx', 'STK_2_POS_xxx', 'STK_3_POS_xxx'] # extract_features
+binary_features = _convert_to_binary_features(features) # "0:1.0 1:1.0 2:1.0 3:1.0"   =>   binary_features
+features = ['STK_2_POS_xxx', 'STK_3_POS_xxx', 'STK_4_POS_xxx', 'STK_5_POS_xxx']
+binary_features = _convert_to_binary_features(features) # 2:1.0 3:1.0 4:1.0 5:1.0
+
+# gives out X, Y as
+# (X, Y) = (binary_features, transition)
+# training_seq = ["LEFT_ARC", "SHIFT", ...]
+
+# later train as model.fit(x_train, y_train)
+
+
+# later parse as following
+features = ['STK_1_POS_xxx', 'STK_3_POS_xxx']
+col = []
+row = []
+data = []
+for feature in features:
+    if feature in _dictionary:
+        col.append(_dictionary[feature])
+        row.append(0)
+        data.append(1.0)
+print "col:", col # col: [1, 3]
+print "row:", row # row: [0, 0]
+print "data:", data # data: [1.0, 1.0]
+np_col = numpy.array(sorted(col))
+np_row = numpy.array(row)
+np_data = numpy.array(data)
+x_test = scipy.sparse.csr_matrix((np_data, (np_row, np_col)), shape=(1, len(_dictionary)))
+
+print x_test
+#   (0, 1)	1.0
+#   (0, 3)	1.0
+
+# prob_dict = {}
+# pred_prob = model.predict_proba(x_test)[0]
