@@ -33,8 +33,8 @@ class SvmModel:
                 pos = s[C.POSTAG]
                 form = s[C.FORM].lower()
                 featureVector.append('s[%d].pos=%s' % (i, pos))
-                # featureVector.append('s[%d].form=%s' % (i, form))
-                # featureVector.append('s[%d].pos=%s,s[%d].form=%s' % (i, pos, i, form))
+                featureVector.append('s[%d].form=%s' % (i, form))
+                featureVector.append('s[%d].pos=%s,s[%d].form=%s' % (i, pos, i, form))
 
         # Next four POS tags from the buffer
         for i in range(4):
