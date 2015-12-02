@@ -12,11 +12,12 @@ from collections import defaultdict
 class Parser:
     def __init__(self, labeled):
         self.labeled = labeled
+        self.numIterations = 5
         self.posTypes = []
         self.labelTypes = []
-        # self.model = PerceptronModel(self.labeled)
+        self.model = PerceptronModel(self.labeled)
         # self.model = DeepLearningModel(self.labeled, self.posTypes, self.labelTypes)
-        self.model = SvmModel(self.labeled)
+        # self.model = SvmModel(self.labeled)
 
     def initialize(self, sentence):
         #            ID    FORM   LEMMA  CPOSTAG  POSTAG  FEATS   HEAD  DEPREL  PHEAD   PDEPREL
@@ -81,15 +82,16 @@ class Parser:
         print
 
     def train(self, trainingSet):
-        corpus = Parser.load_corpus(trainingSet)
-        oracle = Oracle()
-        for sentence in corpus:
-            self.initialize(sentence)
-            self.trackTypes(sentence)
-            while len(self.buff) > 0 or len(self.stack) > 1:
-                transition = oracle.getTransition(self.stack, self.buff, self.dependentIDs, self.arcs, self.labeled)
-                self.model.learn(transition, self.stack, self.buff, self.labels, self.transitions, self.arcs, self.wordsThatHaveHeads)
-                self.execute_transition(transition)
+        for i in range(self.numIterations):
+            corpus = Parser.load_corpus(trainingSet)
+            oracle = Oracle()
+            for sentence in corpus:
+                self.initialize(sentence)
+                self.trackTypes(sentence)
+                while len(self.buff) > 0 or len(self.stack) > 1:
+                    transition = oracle.getTransition(self.stack, self.buff, self.dependentIDs, self.arcs, self.labeled)
+                    self.model.learn(transition, self.stack, self.buff, self.labels, self.transitions, self.arcs, self.wordsThatHaveHeads)
+                    self.execute_transition(transition)
 
     def parse(self, testSet):
         corpus = Parser.load_corpus(testSet)
