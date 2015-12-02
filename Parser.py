@@ -3,6 +3,8 @@ import time
 import Constants as C
 from Oracle import Oracle
 from Perceptron import PerceptronModel
+# from DeepLearningModel import DeepLearningModel
+from SvmModel import SvmModel
 from Transition import Transition
 from collections import defaultdict
 
@@ -12,7 +14,9 @@ class Parser:
         self.labeled = labeled
         self.posTypes = []
         self.labelTypes = []
-        self.model = PerceptronModel(self.labeled)
+        # self.model = PerceptronModel(self.labeled)
+        # self.model = DeepLearningModel(self.labeled, self.posTypes, self.labelTypes)
+        self.model = SvmModel(self.labeled)
 
     def initialize(self, sentence):
         #            ID    FORM   LEMMA  CPOSTAG  POSTAG  FEATS   HEAD  DEPREL  PHEAD   PDEPREL
@@ -21,6 +25,7 @@ class Parser:
         self.stack = list()
         self.arcs = {}  # {dependentId: headId}
         self.labels = {}  # {dependentId: dependentLabel}
+        self.wordsThatHaveHeads = {}  # {wordId: word}
         self.transitions = list()
         self.dependentIDs = defaultdict(list)  # {headId: [dependentId, ...]}
 
@@ -47,6 +52,7 @@ class Parser:
             self.arcs[dependent[C.ID]] = head[C.ID]
             self.labels[dependent[C.ID]] = transition.label
             self.stack.remove(dependent)
+            self.wordsThatHaveHeads[dependent[C.ID]] = dependent
         self.transitions.append(transition)
 
     @staticmethod
@@ -82,7 +88,7 @@ class Parser:
             self.trackTypes(sentence)
             while len(self.buff) > 0 or len(self.stack) > 1:
                 transition = oracle.getTransition(self.stack, self.buff, self.dependentIDs, self.arcs, self.labeled)
-                self.model.learn(transition, self.stack, self.buff, self.labels, self.transitions)
+                self.model.learn(transition, self.stack, self.buff, self.labels, self.transitions, self.arcs, self.wordsThatHaveHeads)
                 self.execute_transition(transition)
 
     def parse(self, testSet):
@@ -90,7 +96,7 @@ class Parser:
         for sentence in corpus:
             self.initialize(sentence)
             while len(self.buff) > 0 or len(self.stack) > 1:
-                _, transition = self.model.predict(self.stack, self.buff, self.labels, self.transitions)
+                _, transition = self.model.predict(self.stack, self.buff, self.labels, self.transitions, self.arcs, self.wordsThatHaveHeads)
                 self.execute_transition(transition)
             self.output(sentence)
 
